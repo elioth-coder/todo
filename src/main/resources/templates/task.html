@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div style="clear:both; margin: 10px; padding: 15px; background-color: #eee;">
+        | <a style="margin: 5px;" th:href="@{/page/person}">Personnels</a>
+        | <a style="margin: 5px;" th:href="@{/page/task}">Tasks</a>
+        |
+    </div>
+    <div style="
+        float: left;
+        width: 200px;
+        padding: 15px;
+        border-right: 1px solid #bbb;
+        height: 100vh;
+        ">
+        <h1>Task</h1>
+        <form id="taskForm">
+            <input type="hidden" name="id" id="hiddenId" value="NULL">
+            <label for="task">
+                <span style="display: inline-block;">Task: </span><br>
+                <input style="width: 100%;" type="text" name="task" id="task">
+            </label><br>
+            <label for="person_id">
+                <span style="display: inline-block; width: 105px;">Personnel: </span><br>
+                <select style="width: 100%" type="text" name="person_id" id="person_id">
+                    <option>Select a personnel</option>
+                </select>
+            </label>
+            <hr>
+            <button type="submit" id="submit">Submit</button>    
+            <button style="display: none" type=button id="cancel">Cancel</button>    
+        </form>
+    </div>
+    <div style="
+        float: left;
+        width: calc(100% - 300px);
+        padding: 15px;
+        height: 100vh;
+        ">
+        <h1>List of Tasks</h1>
+        <div style="padding: 15px 0; text-align: right;">
+            <input type="search" id="search" 
+                placeholder="Search a task."
+                style="padding: 8px; width: 300px;" />
+        </div>
+        <table border="1" id="TasksTable" style="float: right;">
+            <thead>
+            <tr>
+            <th>ID</th>
+            <th>TASK</th>
+            <th>PERSONNEL</th>
+            <th>ROLE</th>
+            <th>ACTION</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+            <td colspan="5" style="text-align: center;">No tasks found..</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <script>
+        var persons = [];
+        var tasks = [];
+        (async () => {
+            persons = await fetchPersons();
+            tasks = await fetchTasks();
+            populatePersonsCombobox(persons);
+            populateTasksTable(tasks);
+        })();
+
+        async function fetchPersons() {
+            let persons = await baseFetch("/person", "GET");
+
+            return persons;
+        }        
+
+        async function fetchTasks() {
+            let tasks = await baseFetch("/task", "GET");
+
+            return tasks;
+        } 
+        
+        async function searchTasks(q) {
+            let tasks = await baseFetch(`/task/search?q=${q}`, "GET");
+
+            return tasks;
+        }        
+
+        search.onkeyup = async (e) => {
+            let q = e.target.value;
+            let tasks = await searchTasks(q);
+
+            populateTasksTable(tasks);
+        }
+
+        function populateTasksTable(tasks) {
+            let tbody = TasksTable.querySelector('tbody');
+            let content = "";
+
+            tasks.forEach(task => {
+                content += `
+                    <tr>
+                        <td>${task.id}</td>
+                        <td>${task.task}</td>
+                        <td>${task.person.firstName} ${task.person.lastName}</td>
+                        <td>${task.person.role}</td>
+                        <td>
+                            <button onclick="deleteTask(${task.id});">Delete</button> 
+                            <button onclick="editTask(${task.id});">Edit</button> 
+                        </td>
+                    </tr>
+                `;
+
+            });
+
+            tbody.innerHTML = content;
+        }
+
+        function populatePersonsCombobox(persons) {
+            let content = "";
+
+            persons.forEach(person => {
+                content += `
+                    <option value="${person.id}">
+                        ${person.role} - 
+                        ${person.firstName}
+                        ${person.lastName}
+                    </option>
+                `;
+            });
+
+            person_id.innerHTML = content;
+        }
+
+        async function baseFetch(url, method='GET', data=null) {
+            const response = await fetch(url, {
+                method, 
+                mode: "cors", 
+                cache: "no-cache", 
+                credentials: "same-origin", 
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                redirect: "follow", 
+                referrerPolicy: "no-referrer", 
+                body: (data != null) ? JSON.stringify(data) : null, 
+            });
+
+            return await response.json();
+        }
+
+
+        async function deleteTask(id) {
+            let continueDelete = confirm("Are you sure you want to delete this task?");
+        
+            if(continueDelete) {
+                let { status, message } = await baseFetch("/task/" + id, "DELETE");
+
+                alert(message);
+
+                if(status == 'success') window.location.reload();
+            }
+        }
+
+        async function editTask(id) {
+            let toEdit = tasks.filter(t => t.id == id)[0];
+            console.log(toEdit);
+
+            if(toEdit) {
+                task.value = toEdit.task;
+                person_id.value = toEdit.person_id;
+                hiddenId.value = id;
+                cancel.style.display = 'inline-block';
+            }
+        }
+
+        taskForm.onsubmit = async (e) => {
+            e.preventDefault();
+            let formData = new FormData(taskForm);
+
+            if(formData.get("id") == 'NULL') {
+                formData.set("id", null);
+            }
+
+            let data = {
+                id: formData.get("id"),
+                task: formData.get("task"),
+                person_id: formData.get("person_id"),
+            };
+
+            console.log(data);
+            let method = (formData.get('id') == "null") ? "POST" : "PUT";
+            let { status, message } = await baseFetch("/task", method, data);
+
+            alert(message);
+            if(status == 'success') {
+                hiddenId.value = "NULL";
+                cancel.style.display = 'none';
+                task.value = "";
+                window.location.reload();
+            } 
+        }
+
+        cancel.onclick = () => {
+            cancel.style.display = 'none';
+            hiddenId.value = 'NULL';
+            task.value = "";
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Person Page</title>
+</head>
+<body>
+    <div>
+        | <a href="/page/person">Person</a>
+        | <a href="/page/task">Task</a>
+        |
+    </div>
+    <h1>You are in Person Page</h1>
+    <div style="box-sizing: border-box; padding: 15px; float: left; width: 300px; border-right: 1px solid #ddd;">
+        <form id="personForm">
+            <input type="hidden" id="hiddenId" name="id">
+            <label for="firstName">
+                First name: <input type="text" name="firstName" id="firstName" />
+            </label><br>
+            <label for="lastName">
+                Last name: <input type="text" name="lastName" id="lastName" />
+            </label><br>
+            <label for="role">
+                Role: <input type="text" name="role" id="role" />
+            </label><hr>
+            <button type="submit">Submit</button>
+            <button type="button" id="cancel" style="display: none;">Cancel</button>
+        </form>
+    </div>
+    <div style="box-sizing: border-box; padding: 15px; float: left; width: calc(100% - 300px);">
+        <input placeholder="Search a person." id="search" type="search" style="display: block; float: right; padding: 10px; width: 250px;" />
+        <table id="PersonsTable" border="1" style="float: right;">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>FIRSTNAME</th>
+            <th>LASTNAME</th>
+            <th>ROLE</th>
+            <th>ACTION</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td colspan="5" style="text-align: center">No persons found.</td>
+        </tr>
+        </tbody>
+        </table>
+    </div>
+
+    <script>
+    var persons = [];
+
+    (async function() {
+        persons = await fetchPersons();
+        populatePersonsTable(persons);
+    })();
+
+    cancel.onclick = () => {
+        cancel.style.display = 'none';
+        firstName.value = "";
+        lastName.value = "";
+        role.value = "";
+        hiddenId.value = "";
+    }
+
+    function editPerson(personId) {
+        let person = persons.filter((p) => p.id == personId)[0];
+
+        if(person) {
+            firstName.value = person.firstName;
+            lastName.value = person.lastName;
+            role.value = person.role;
+            hiddenId.value = person.id;
+            cancel.style.display = 'inline-block';
+        }
+    }
+
+    async function deletePerson(personId) {
+        let confirmation = confirm("Are you sure you want to delete this person?");
+        
+        if(confirmation) {
+            let { status, message } = await baseFetch("/person/" + personId, "DELETE");
+            alert(message);
+
+            if(status == "success") {
+                window.location.reload();
+            }
+        }
+    }
+
+    function populatePersonsTable(persons) {
+        let tbody = PersonsTable.querySelector("tbody");
+        let content = "";
+
+        persons.forEach(function(person) {
+            content += `
+                <tr>
+                    <td>${person.id}</td>
+                    <td>${person.firstName}</td>
+                    <td>${person.lastName}</td>
+                    <td>${person.role}</td>
+                    <td>
+                        <button onclick="editPerson(${person.id});">Edit</button>
+                        <button onclick="deletePerson(${person.id});">Delete</button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = content;
+    }
+
+    search.onkeyup = async (e) => {
+         let q = e.target.value;
+         let persons = await searchPersons(q);
+
+         populatePersonsTable(persons);
+    }
+
+    async function searchPersons(q) {
+        let persons = await baseFetch("/person/search?q=" + q);
+
+        return persons;
+    }
+
+    async function fetchPersons() {
+        let persons = await baseFetch("/person");
+
+        return persons;
+    }
+
+    async function baseFetch(url, method="GET", data=null) {
+        let response = await fetch(url, {
+            method,
+            mode: "cors", 
+            cache: "no-cache", 
+            credentials: "same-origin", 
+            headers: {
+                "Content-Type": "application/json",
+            },
+            redirect: "follow", 
+            referrerPolicy: "no-referrer", 
+            body: (data != null) ? JSON.stringify(data) : null,
+        });
+
+        return response.json();
+    }
+
+    personForm.onsubmit = async function(e) {
+        e.preventDefault();
+        console.log("You submitted the form.");
+
+        let formData = new FormData(personForm);
+        let data = {
+            id: (formData.get("id") == "") ? null : formData.get("id"),
+            firstName: formData.get("firstName"),
+            lastName: formData.get("lastName"),
+            role: formData.get("role")
+        };
+        let method = (formData.get("id") == "") ? "POST" : "PUT";
+
+        let { status, message } = await baseFetch("/person", method, data);
+        console.log({status, message});
+
+        alert(message);
+
+        if(status == "success") {
+            firstName.value = "";
+            lastName.value = "";
+            role.value = "";
+            window.location.reload();
+        }
+    };
+    </script>
+</body>
+</html>
